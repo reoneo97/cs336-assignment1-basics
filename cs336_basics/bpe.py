@@ -94,26 +94,62 @@ class BPETrainer():
         merges =[]
         pair_counts = defaultdict(int)
         pair_locations = defaultdict(set)
-
         for k,v in counter.items():
             for i in range(len(k) - 1): 
                 # No need to check vocab since this is pre-merge, int will be directly mapped to vocab
                 pair = (k[i], k[i+1])
                 pair_counts[pair] += v
-                pair_locations[pair].add(k)
+                pair_locations[pair].add(tuple(k))
+
         while len(self.vocab) < self.vocab_size:
-            most_common = max(pair_counts, key=pair_counts.get) # int type
-            tok1, tok2 = (self.vocab[idx] for idx in most_common)
+            tid1, tid2 = max(
+                pair_counts,
+                key=lambda p: (pair_counts[p], self.vocab[p[0]], self.vocab[p[1]])
+            )
+            tok1, tok2 = self.vocab[tid1], self.vocab[tid2]
             self.merges.append((tok1, tok2))
+
             self.vocab[len(self.vocab)] = tok1+tok2
+            new_tid = len(self.vocab) - 1
+            locations = pair_locations[(tid1, tid2)].copy()
 
-            locations = pair_locations[most_common]
-            print('Merge:', tok1+tok2)
-            print(pair_locations[most_common])
-            del pair_counts[most_common]
-            del pair_locations[most_common]
-            break
+            for location in locations:
+                counts = counter[self.decode(location)]
+                l = len(location)
+                i = 0
+                new_location = []
+                pairs_touched = []
+                while i < l:
+                    if i < l - 1 and location[i] == tid1 and location[i+1] == tid2:
+                        # LEFT neighbor: read off new_location (already-merged state), not location[i-1]
+                        if new_location:  # equivalent to "i > 0" but correct after merges
+                            left = new_location[-1]
+                            pair_counts[(left, tid1)] -= counts
+                            pair_counts[(left, new_tid)] += counts
+                            pair_locations[(left, tid1)].discard(location)
+                            pairs_touched.append((left, new_tid))
 
+                        new_location.append(new_tid)
+
+                        # RIGHT neighbor: location[i+2] is still safe to read directly here
+                        if i + 2 < l:
+                            pair_counts[(tid2, location[i+2])] -= counts
+                            pair_counts[(new_tid, location[i+2])] += counts
+                            pair_locations[(tid2, location[i+2])].discard(location)
+                            pairs_touched.append((new_tid, location[i+2]))
+
+                        i += 2
+                    else:
+                        new_location.append(location[i])
+                        i += 1
+                new_location = tuple(new_location)
+                for pair in pairs_touched:
+                    pair_locations[pair].add(new_location)
+
+            del pair_counts[(tid1, tid2)]
+            del pair_locations[(tid1, tid2)]
+        # for merge in self.merges:
+        # print(merge)
         return self.vocab, self.merges
 
     def pretokenize(
@@ -132,6 +168,10 @@ class BPETrainer():
         Special Tokens: {self.special_tokens}
         VOCAB: {self.vocab}
         '''
+    
+    def decode(self, tokens: tuple[int]):
+        return b"".join([self.vocab[i] for i in tokens])
+
 
 class BPETokenizer():
     
