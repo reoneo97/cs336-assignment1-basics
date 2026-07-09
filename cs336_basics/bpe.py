@@ -3,6 +3,8 @@ import os
 from typing import BinaryIO
 from collections import Counter, defaultdict
 from multiprocessing import Pool
+import time
+
 
 GPT2_PRETOKENIZE = (
     r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
@@ -70,8 +72,8 @@ class BPETrainer:
 
 
     def train_bpe(self, input_path: str | os.PathLike):
-
         # Parallel Pre-tokenization
+        st = time.time()
         with open(input_path, "rb") as f:
             boundaries = find_chunk_boundaries(
                 f, self.parallel, self.special_tokens[0].encode("utf-8")
@@ -85,6 +87,10 @@ class BPETrainer:
                 counters = pool.map(self.pretokenize, chunks)
             counter = sum(counters, Counter())
 
+
+        
+        print("Pretokenization took", time.time() - st, 'seconds')
+        st = time.time()
         # --- Word-ID based structures ---
         # This was needed the token tuples will change over time. word_seqs basically
         # keeps track of all pretokenized words to index and update pair_counts/locations
@@ -154,7 +160,7 @@ class BPETrainer:
 
             del pair_counts[(tid1, tid2)]
             del pair_locations[(tid1, tid2)]
-
+        print('Merges took', time.time() - st, 'seconds')
         return self.vocab, self.merges
 
     def pretokenize(self, chunk: str):
@@ -177,16 +183,3 @@ class BPETrainer:
     def decode(self, tokens: tuple[int]):
         return b"".join([self.vocab[i] for i in tokens])
 
-
-class BPETokenizer:
-
-    def __init__(self, special_tokens: list[str], concurrency: int):
-        self.vocab = dict()
-        self.special_tokens = special_tokens
-        self.concurrency = concurrency
-
-    def pretokenize(text):
-        matches = re.finditer(GPT2_PRETOKENIZE, text)
-
-    def merge():
-        pass

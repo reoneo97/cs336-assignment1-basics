@@ -564,7 +564,6 @@ def get_tokenizer(
     tokenizer = BPETokenizer(special_tokens, 8)
 
 
-
 def run_train_bpe(
     input_path: str | os.PathLike,
     vocab_size: int,
