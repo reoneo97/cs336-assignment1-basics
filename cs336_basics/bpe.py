@@ -212,10 +212,10 @@ class Tokenizer:
         text: str,
     ) -> list[bytes]:
         """
-        Chunk by special tokens to ensure that the special tokens are kept and 
+        Chunk by special tokens to ensure that the special tokens are kept and
         not converted to bytes. Regex is slightly different with the () so that
         special tokens will be in its own chunk - This is so that special tokens
-        can be tokenized independently 
+        can be tokenized independently
         """
         if self.special_tokens:
             splitter = "|".join([re.escape(tok) for tok in self.special_tokens])
@@ -232,11 +232,11 @@ class Tokenizer:
     def encode_text(self, text: str) -> list[int]:
         """
         Helper class to encode a string that does not contain special characters.
-        pretokens are a list of byte objects, initially the objects are just single bytes. 
+        pretokens are a list of byte objects, initially the objects are just single bytes.
         As we iterate over merges, we combine the bytes to form larger strings
         After all possible merges are done, tokenize them based on the vocab mapper
-        
-        Can definitely be paralellized in the future, since each tokenization of each 
+
+        Can definitely be paralellized in the future, since each tokenization of each
         pretoken is done independently
         """
         pretokens = self.pretokenize(text)
@@ -273,7 +273,7 @@ class Tokenizer:
                 # Check if the chunk corresponds to a special token
                 res.append(self.vocab_mapper[chunk.encode("utf-8")])
             else:
-                # No special token, tokenize as normal 
+                # No special token, tokenize as normal
                 res += self.encode_text(chunk)
         return res
 
