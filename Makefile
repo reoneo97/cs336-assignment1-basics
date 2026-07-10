@@ -1,4 +1,9 @@
-.PHONY: bpe-test
+.PHONY: bpe-test lint
 
-bpe-test:
-	uv run pytest tests/test_train_bpe.py -vv
+bpe-tr:
+	uv run pytest tests/test_train_bpe.py
+bpe-to:
+	uv run pytest tests/test_tokenizer.py
+
+lint: 
+	ruff format

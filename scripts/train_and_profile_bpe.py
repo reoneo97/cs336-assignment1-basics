@@ -3,9 +3,9 @@ import argparse
 import resource
 
 SPECIAL_TOKENS = ["<|endoftext|>"]
-parser = argparse.ArgumentParser('Parser for training script')
-parser.add_argument('dataset_path', type=str, help='Path for the dataset')
-parser.add_argument('--vocab_size', type=int, help='Vocab Size for BPE Trainer')
+parser = argparse.ArgumentParser("Parser for training script")
+parser.add_argument("dataset_path", type=str, help="Path for the dataset")
+parser.add_argument("--vocab_size", type=int, help="Vocab Size for BPE Trainer")
 
 args = parser.parse_args()
 

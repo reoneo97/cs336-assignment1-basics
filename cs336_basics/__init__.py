@@ -5,9 +5,6 @@ try:
 except importlib.metadata.PackageNotFoundError:
     pass
 
-from .bpe import BPETokenizer, BPETrainer
+from .bpe import Tokenizer, BPETrainer
 
-__all__ = [
-    "BPETokenizer",
-    "BPETrainer"
-]
+__all__ = ["Tokenizer", "BPETrainer"]
