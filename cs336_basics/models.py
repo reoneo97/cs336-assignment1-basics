@@ -212,7 +212,7 @@ class MultiHeadAttentionRope(MultiHeadAttention):
         device: torch.device | None = None,
         dtype: torch.dtype | None = None,
     ):
-        super().__init__(d_model, num_heads, device, dtype)
+        super().__init__(d_model, num_heads, device=device, dtype=dtype)
         self.rope = RotaryPositionalEmbedding(theta, self.d_head, max_seq_len, device)
 
     def forward(self, x, positions):
@@ -233,7 +233,7 @@ class MultiHeadAttentionRope(MultiHeadAttention):
         return self.O(res)
 
 
-class Transformer(nn.Module):
+class TransformerBlock(nn.Module):
     def __init__(
         self,
         d_model: int,
@@ -251,7 +251,6 @@ class Transformer(nn.Module):
         self.mha = MultiHeadAttentionRope(
             d_model,
             num_heads,
-            d_ff,
             theta,
             max_seq_len,
             device=device,
@@ -260,7 +259,7 @@ class Transformer(nn.Module):
         self.ffn = SwiGLU(d_model, d_ff, device=device, dtype=dtype)
 
     def forward(self, x):
-        seq_len = x.shape[11]
+        seq_len = x.shape[1]
         token_pos = torch.arange(0, seq_len)
 
         att_out = self.mha(self.att_norm(x), token_pos)
