@@ -171,6 +171,8 @@ class MultiHeadAttention(nn.Module):
         self,
         d_model: int,
         num_heads: int,
+        device: torch.device | None = None,
+        dtype: torch.dtype | None = None,
     ):
         super().__init__()
         self.d_head = d_model // num_heads
@@ -179,10 +181,10 @@ class MultiHeadAttention(nn.Module):
         # Having a single Q linear layer is the same as having N heads each
         # projecting to a smaller dimension, reason being is that its still
         # a matrix multiply and the rows
-        self.Q = Linear(d_model, d_model)
-        self.K = Linear(d_model, d_model)
-        self.V = Linear(d_model, d_model)
-        self.O = Linear(d_model, d_model)
+        self.Q = Linear(d_model, d_model, device, dtype)
+        self.K = Linear(d_model, d_model, device, dtype)
+        self.V = Linear(d_model, d_model, device, dtype)
+        self.O = Linear(d_model, d_model, device, dtype)
 
     def forward(self, x):
         seq_len = x.shape[1]
@@ -190,19 +192,28 @@ class MultiHeadAttention(nn.Module):
         k = self.K(x)
         v = self.V(x)
 
-        q = rearrange(q, 'b s (h d) -> b h s d', h=self.num_heads)
-        k = rearrange(k, 'b s (h d) -> b h s d', h=self.num_heads)
+        q = rearrange(q, "b s (h d) -> b h s d", h=self.num_heads)
+        k = rearrange(k, "b s (h d) -> b h s d", h=self.num_heads)
         v = rearrange(v, "b s (h d) -> b h s d", h=self.num_heads)
         mask = torch.tril(torch.ones(seq_len, seq_len, dtype=torch.bool))
 
         res = scaled_dot_product_attention(q, k, v, mask)
-        res = rearrange(res, 'b h s d -> b s (h d)', h=self.num_heads)
+        res = rearrange(res, "b h s d -> b s (h d)", h=self.num_heads)
         return self.O(res)
-    
+
+
 class MultiHeadAttentionRope(MultiHeadAttention):
-    def __init__(self, d_model, num_heads, theta, max_seq_len,):
-        super().__init__(d_model, num_heads)
-        self.rope = RotaryPositionalEmbedding(theta, self.d_head, max_seq_len)
+    def __init__(
+        self,
+        d_model,
+        num_heads,
+        theta,
+        max_seq_len,
+        device: torch.device | None = None,
+        dtype: torch.dtype | None = None,
+    ):
+        super().__init__(d_model, num_heads, device, dtype)
+        self.rope = RotaryPositionalEmbedding(theta, self.d_head, max_seq_len, device)
 
     def forward(self, x, positions):
         seq_len = x.shape[1]
@@ -210,32 +221,54 @@ class MultiHeadAttentionRope(MultiHeadAttention):
         k = self.K(x)
         v = self.V(x)
 
-        q = rearrange(q, 'b s (h d) -> b h s d', h=self.num_heads)
-        k = rearrange(k, 'b s (h d) -> b h s d', h=self.num_heads)
+        q = rearrange(q, "b s (h d) -> b h s d", h=self.num_heads)
+        k = rearrange(k, "b s (h d) -> b h s d", h=self.num_heads)
         q = self.rope(q, positions)
         k = self.rope(k, positions)
         v = rearrange(v, "b s (h d) -> b h s d", h=self.num_heads)
         mask = torch.tril(torch.ones(seq_len, seq_len, dtype=torch.bool))
 
         res = scaled_dot_product_attention(q, k, v, mask)
-        res = rearrange(res, 'b h s d -> b s (h d)', h=self.num_heads)
+        res = rearrange(res, "b h s d -> b s (h d)", h=self.num_heads)
         return self.O(res)
+
 
 class Transformer(nn.Module):
     def __init__(
         self,
         d_model: int,
         num_heads: int,
+        d_ff: int,
+        theta: float,
+        max_seq_len: int,
+        device: torch.device | None = None,
+        dtype: torch.dtype | None = None,
     ):
         super().__init__()
-        self.d_k = d_model // num_heads
-        self.d_model = d_model
-        self.num_heads = num_heads
+        self.att_norm = RMSNorm(d_model, device=device, dtype=dtype)
+        self.ff_norm = RMSNorm(d_model, device=device, dtype=dtype)
+
+        self.mha = MultiHeadAttentionRope(
+            d_model,
+            num_heads,
+            d_ff,
+            theta,
+            max_seq_len,
+            device=device,
+            dtype=dtype,
+        )
+        self.ffn = SwiGLU(d_model, d_ff, device=device, dtype=dtype)
 
     def forward(self, x):
-        seq_len = x.shape[-1]
-        
-        pass
+        seq_len = x.shape[11]
+        token_pos = torch.arange(0, seq_len)
+
+        att_out = self.mha(self.att_norm(x), token_pos)
+        x = x + att_out
+        ff_out = self.ffn(self.ff_norm(x))
+        x = x + ff_out
+
+        return x
 
 
 def softmax(x):
