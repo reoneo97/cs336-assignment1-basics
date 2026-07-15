@@ -301,19 +301,18 @@ def run_transformer_block(
     """
     block = TransformerBlock(d_model, num_heads, d_ff, theta, max_seq_len)
     with torch.no_grad():
-        block.att_norm.gain.copy_(weights['ln1.weight'])
+        block.att_norm.gain.copy_(weights["ln1.weight"])
         block.ff_norm.gain.copy_(weights["ln2.weight"])
 
-        block.mha.Q.weight.copy_(weights['attn.q_proj.weight'])
+        block.mha.Q.weight.copy_(weights["attn.q_proj.weight"])
         block.mha.K.weight.copy_(weights["attn.k_proj.weight"])
         block.mha.V.weight.copy_(weights["attn.v_proj.weight"])
         block.mha.O.weight.copy_(weights["attn.output_proj.weight"])
 
-        block.ffn.w1.weight.copy_(weights['ffn.w1.weight'])
+        block.ffn.w1.weight.copy_(weights["ffn.w1.weight"])
         block.ffn.w2.weight.copy_(weights["ffn.w2.weight"])
         block.ffn.w3.weight.copy_(weights["ffn.w3.weight"])
     return block(in_features)
-
 
 
 def run_transformer_lm(
@@ -395,7 +394,24 @@ def run_transformer_lm(
         Float[Tensor, "batch_size sequence_length vocab_size"]: Tensor with the predicted unnormalized
         next-word distribution for each token.
     """
-    raise NotImplementedError
+    lm = TransformerLM(vocab_size, context_length, d_model, num_layers, num_heads, d_ff, rope_theta,)
+
+    with torch.no_grad():
+        lm.embedding.embeds.copy_(weights['token_embeddings.weight'])
+        for i, layer in enumerate(lm.transformer_layers):
+
+            layer.att_norm.gain.copy_(weights[f"layers.{i}.ln1.weight"])
+            layer.ff_norm.gain.copy_(weights[f"layers.{i}.ln2.weight"])
+            layer.mha.Q.weight.copy_(weights[f"layers.{i}.attn.q_proj.weight"])
+            layer.mha.K.weight.copy_(weights[f"layers.{i}.attn.k_proj.weight"])
+            layer.mha.V.weight.copy_(weights[f"layers.{i}.attn.v_proj.weight"])
+            layer.mha.O.weight.copy_(weights[f"layers.{i}.attn.output_proj.weight"])
+            layer.ffn.w1.weight.copy_(weights[f"layers.{i}.ffn.w1.weight"])
+            layer.ffn.w2.weight.copy_(weights[f"layers.{i}.ffn.w2.weight"])
+            layer.ffn.w3.weight.copy_(weights[f"layers.{i}.ffn.w3.weight"])
+        lm.head_norm.gain.copy_(weights["ln_final.weight"])
+        lm.lm_head.weight.copy_(weights['lm_head.weight'])
+    return lm(in_indices)
 
 
 def run_rmsnorm(

@@ -78,8 +78,6 @@ class RMSNorm(nn.Module):
 
     def forward(self, x):
         in_dtype = x.dtype
-        x = x.to(torch.float32)
-
         denom = torch.sqrt(
             torch.square(x).mean(
                 dim=-1,
@@ -267,6 +265,39 @@ class TransformerBlock(nn.Module):
         ff_out = self.ffn(self.ff_norm(x))
         x = x + ff_out
 
+        return x
+
+
+class TransformerLM(nn.Module):
+
+    def __init__(
+        self,
+        vocab_size: int,
+        context_length: int,
+        d_model: int, 
+        num_layers: int,
+        num_heads: int, 
+        d_ff: int, 
+        rope_theta: float,
+        device: torch.device | None = None,
+        dtype: torch.dtype | None = None,
+    ):
+        super().__init__()
+        self.embedding = Embedding(vocab_size,d_model,device,dtype)
+        self.transformer_layers = nn.ModuleList([
+            TransformerBlock(d_model, num_heads,d_ff,rope_theta, context_length, device, dtype)
+            for i in range(num_layers)
+        ])
+        self.head_norm = RMSNorm(d_model, device=device, dtype=dtype)
+        self.lm_head = Linear(d_model, vocab_size, device, dtype)
+
+    def forward(self, x: Int[Tensor, 'batch seq_len']):
+        x = self.embedding(x)
+        for layer in self.transformer_layers:
+            x = layer(x)
+        print(x.shape, x.dtype)
+        x = self.head_norm(x)
+        x = self.lm_head(x)
         return x
 
 
